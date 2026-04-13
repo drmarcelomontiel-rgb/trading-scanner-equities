@@ -1,0 +1,71 @@
+name: 🔍 Trading Scanner — Equities
+
+on:
+  # ── Automático: cada hora al cierre de vela H1, en horario NYSE ──────────────
+  # Corre 14:00–21:00 UTC (cubre 9:00–16:00 ET tanto en EDT como EST).
+  # El script mismo verifica que el mercado esté abierto antes de escanear.
+  schedule:
+    - cron: "0 14-21 * * 1-5"
+
+  # ── Manual: desde la UI de GitHub Actions ────────────────────────────────────
+  workflow_dispatch:
+    inputs:
+      symbol:
+        description: "Símbolo a escanear (vacío = todos)"
+        required: false
+        default: ""
+      timeframe:
+        description: "Timeframe"
+        required: false
+        default: ""
+        type: choice
+        options:
+          - ""
+          - "H1"
+          - "D1"
+      force:
+        description: "Ignorar chequeo de horario de mercado"
+        required: false
+        default: "false"
+        type: choice
+        options:
+          - "false"
+          - "true"
+
+jobs:
+  scan:
+    name: Ejecutar scanner
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: 📥 Checkout código
+        uses: actions/checkout@v4
+
+      - name: 🐍 Configurar Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: 📦 Instalar dependencias
+        run: pip install -r requirements.txt
+
+      - name: 🔍 Ejecutar scanner
+        env:
+          ALPACA_API_KEY:    ${{ secrets.ALPACA_API_KEY }}
+          ALPACA_API_SECRET: ${{ secrets.ALPACA_API_SECRET }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID:   ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          ARGS=""
+          if [ -n "${{ github.event.inputs.symbol }}" ]; then
+            ARGS="$ARGS --symbol ${{ github.event.inputs.symbol }}"
+          fi
+          if [ -n "${{ github.event.inputs.timeframe }}" ]; then
+            ARGS="$ARGS --timeframe ${{ github.event.inputs.timeframe }}"
+          fi
+          if [ "${{ github.event.inputs.force }}" = "true" ]; then
+            ARGS="$ARGS --force"
+          fi
+          python scanner.py $ARGS
