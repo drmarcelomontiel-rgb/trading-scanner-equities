@@ -21,6 +21,7 @@ import pytz
 from alpaca.data.historical import StockHistoricalDataClient
 from alpaca.data.requests import StockBarsRequest
 from alpaca.data.timeframe import TimeFrame, TimeFrameUnit
+from alpaca.data.enums import DataFeed
 
 import pandas as pd
 
@@ -81,14 +82,20 @@ def fetch_bars(client: StockHistoricalDataClient, symbol: str, timeframe: str) -
         return None
 
     try:
-        req  = StockBarsRequest(symbol_or_symbols=symbol, timeframe=tf, limit=BARS_LIMIT)
+        req  = StockBarsRequest(
+            symbol_or_symbols=symbol,
+            timeframe=tf,
+            limit=BARS_LIMIT,
+            feed=DataFeed.IEX,          # feed gratuito, compatible con paper/free
+        )
         data = client.get_stock_bars(req)
 
         # Acceder a los objetos Bar directamente (más robusto que data.df)
         bars_data = data.data  # dict[symbol -> list[Bar]]
+        log.debug(f"{symbol} — símbolos en respuesta: {list(bars_data.keys())}")
         key = symbol if symbol in bars_data else (list(bars_data)[0] if bars_data else None)
         if not key or not bars_data[key]:
-            log.warning(f"{symbol} — sin datos en la respuesta de Alpaca")
+            log.warning(f"{symbol} — sin datos en la respuesta de Alpaca (feed=IEX)")
             return None
 
         records = [
