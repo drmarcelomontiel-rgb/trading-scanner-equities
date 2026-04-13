@@ -83,31 +83,28 @@ def fetch_bars(client: StockHistoricalDataClient, symbol: str, timeframe: str) -
     try:
         req  = StockBarsRequest(symbol_or_symbols=symbol, timeframe=tf, limit=BARS_LIMIT)
         data = client.get_stock_bars(req)
-        df   = data.df
 
-        log.debug(f"{symbol} columnas raw: {list(df.columns)}, index: {df.index.names}")
+        # Acceder a los objetos Bar directamente (más robusto que data.df)
+        bars_data = data.data  # dict[symbol -> list[Bar]]
+        key = symbol if symbol in bars_data else (list(bars_data)[0] if bars_data else None)
+        if not key or not bars_data[key]:
+            log.warning(f"{symbol} — sin datos en la respuesta de Alpaca")
+            return None
 
-        # Aplanar MultiIndex (symbol, timestamp) → solo timestamp
-        if isinstance(df.index, pd.MultiIndex):
-            lvl0 = df.index.get_level_values(0)
-            key  = symbol if symbol in lvl0 else lvl0[0]
-            df   = df.xs(key, level=0)
-
-        # Si el índice es 'timestamp' como columna, convertirlo
-        if df.index.name != "timestamp" and "timestamp" in df.columns:
-            df = df.set_index("timestamp")
-
-        # Eliminar columna 'symbol' si quedó
-        df = df.loc[:, df.columns != "symbol"]
-
+        records = [
+            {
+                "timestamp": b.timestamp,
+                "open":      float(b.open),
+                "high":      float(b.high),
+                "low":       float(b.low),
+                "close":     float(b.close),
+                "volume":    float(b.volume),
+            }
+            for b in bars_data[key]
+        ]
+        df = pd.DataFrame(records).set_index("timestamp")
         df.index = pd.to_datetime(df.index)
         df.sort_index(inplace=True)
-        df.columns = [c.lower() for c in df.columns]
-
-        missing = [c for c in ("open", "high", "low", "close", "volume") if c not in df.columns]
-        if missing:
-            log.warning(f"{symbol} — columnas faltantes: {missing}. Disponibles: {list(df.columns)}")
-            return None
 
         return df[["open", "high", "low", "close", "volume"]]
 
