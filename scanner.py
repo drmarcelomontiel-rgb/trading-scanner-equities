@@ -13,7 +13,7 @@ Uso manual:
 import argparse
 import logging
 import sys
-from datetime import datetime, time as dtime
+from datetime import datetime, time as dtime, timedelta
 from typing import Optional
 
 import pytz
@@ -21,7 +21,6 @@ import pytz
 from alpaca.data.historical import StockHistoricalDataClient
 from alpaca.data.requests import StockBarsRequest
 from alpaca.data.timeframe import TimeFrame, TimeFrameUnit
-from alpaca.data.enums import DataFeed
 
 import pandas as pd
 
@@ -82,11 +81,15 @@ def fetch_bars(client: StockHistoricalDataClient, symbol: str, timeframe: str) -
         return None
 
     try:
+        # Pedir desde hace 60 días calendario para garantizar suficientes barras
+        # independientemente del timeframe. Sin especificar feed para que Alpaca
+        # use el que corresponda a la suscripción del usuario (SIP / IEX).
+        start = datetime.utcnow() - timedelta(days=60)
         req  = StockBarsRequest(
             symbol_or_symbols=symbol,
             timeframe=tf,
+            start=start,
             limit=BARS_LIMIT,
-            feed=DataFeed.IEX,          # feed gratuito, compatible con paper/free
         )
         data = client.get_stock_bars(req)
 
