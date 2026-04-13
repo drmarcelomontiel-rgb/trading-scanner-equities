@@ -3,7 +3,10 @@ Envío de alertas por Telegram.
 """
 import logging
 import requests
-from typing import Dict, Any
+from datetime import datetime
+from typing import Dict, Any, List
+
+import pytz
 
 from config import TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID
 
@@ -61,6 +64,53 @@ def format_alert(symbol: str, timeframe: str, result: Dict[str, Any]) -> str:
         f"💰 Precio actual : <code>${result['current_price']:.4f}</code>"
     )
     return msg
+
+
+def format_daily_summary(rows: List[Dict[str, Any]], timeframe: str) -> str:
+    """
+    Formatea el resumen diario con el score de todos los activos.
+
+    `rows` es una lista de dicts:
+      { symbol, bullish_score, bearish_score, bullish_valid, bearish_valid }
+    """
+    ny_tz = pytz.timezone("America/New_York")
+    fecha = datetime.now(ny_tz).strftime("%a %d %b %Y")
+
+    def bar(score: int, total: int = 6) -> str:
+        filled = "●" * score
+        empty  = "○" * (total - score)
+        return filled + empty
+
+    def flag(valid: bool) -> str:
+        return " ✅" if valid else ""
+
+    lines = [f"📊 <b>Resumen {timeframe} — {fecha}</b>\n"]
+    lines.append(f"{'Activo':<6}  {'📈 Alcista':<14}  {'📉 Bajista'}")
+    lines.append("─" * 38)
+
+    for r in rows:
+        sym = r["symbol"]
+        bs  = r["bullish_score"]
+        brs = r["bearish_score"]
+        bv  = r["bullish_valid"]
+        brv = r["bearish_valid"]
+        lines.append(
+            f"{sym:<6}  {bar(bs)} {bs}/6{flag(bv):<4}  {bar(brs)} {brs}/6{flag(brv)}"
+        )
+
+    # Destacar setups detectados
+    setups = [r for r in rows if r["bullish_valid"] or r["bearish_valid"]]
+    if setups:
+        lines.append("\n🚨 <b>Setups activos:</b>")
+        for r in setups:
+            if r["bullish_valid"]:
+                lines.append(f"  📈 {r['symbol']} alcista ({r['bullish_score']}/6)")
+            if r["bearish_valid"]:
+                lines.append(f"  📉 {r['symbol']} bajista ({r['bearish_score']}/6)")
+    else:
+        lines.append("\n⏳ Sin setups activos hoy.")
+
+    return "\n".join(lines)
 
 
 def send_telegram_alert(message: str) -> bool:

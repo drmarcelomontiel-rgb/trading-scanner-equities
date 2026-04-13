@@ -14,7 +14,7 @@ import argparse
 import logging
 import sys
 from datetime import datetime, time as dtime, timedelta
-from typing import Optional
+from typing import Dict, Optional
 
 import pytz
 
@@ -30,7 +30,7 @@ from config import (
     MIN_CONFLUENCES,
 )
 from indicators import analyze_setup
-from alerts import format_alert, send_telegram_alert
+from alerts import format_alert, format_daily_summary, send_telegram_alert
 
 # ── Logging ───────────────────────────────────────────────────────────────────
 logging.basicConfig(
@@ -125,14 +125,26 @@ def fetch_bars(client: StockHistoricalDataClient, symbol: str, timeframe: str) -
 
 # ── Escaneo de un símbolo / timeframe ────────────────────────────────────────
 
-def scan_one(client: StockHistoricalDataClient, symbol: str, timeframe: str) -> None:
-    """Analiza bullish y bearish para un símbolo + timeframe y manda alertas si aplica."""
+def scan_one(client: StockHistoricalDataClient, symbol: str, timeframe: str) -> Dict:
+    """
+    Analiza bullish y bearish para un símbolo + timeframe.
+    Manda alerta de Telegram si hay setup (≥4 confluencias).
+    Retorna un dict con los scores para el resumen diario.
+    """
     log.info(f"Escaneando {symbol} [{timeframe}]...")
+
+    summary = {
+        "symbol":        symbol,
+        "bullish_score": 0,
+        "bearish_score": 0,
+        "bullish_valid": False,
+        "bearish_valid": False,
+    }
 
     df = fetch_bars(client, symbol, timeframe)
     if df is None or len(df) < 30:
         log.warning(f"{symbol} [{timeframe}] — datos insuficientes, saltando.")
-        return
+        return summary
 
     tf_label = _TF_LABEL.get(timeframe, timeframe)
 
@@ -151,10 +163,19 @@ def scan_one(client: StockHistoricalDataClient, symbol: str, timeframe: str) -> 
             f"{confluences}/6 confluencias — {'✅ ALERTA' if valid else '❌ no setup'}"
         )
 
+        if direction == "bullish":
+            summary["bullish_score"] = confluences
+            summary["bullish_valid"] = valid
+        else:
+            summary["bearish_score"] = confluences
+            summary["bearish_valid"] = valid
+
         if valid:
             message = format_alert(symbol, tf_label, result)
             log.info(f"\n{message}\n")
             send_telegram_alert(message)
+
+    return summary
 
 
 # ── Main ──────────────────────────────────────────────────────────────────────
@@ -203,9 +224,15 @@ def main() -> None:
 
     client = get_alpaca_client()
 
-    for symbol in symbols:
-        for tf in timeframes:
-            scan_one(client, symbol, tf)
+    for tf in timeframes:
+        rows = [scan_one(client, sym, tf) for sym in symbols]
+
+        # Resumen diario: solo cuando se escanea D1 con todos los activos
+        if tf == "D1" and not args.symbol:
+            tf_label = _TF_LABEL.get(tf, tf)
+            summary_msg = format_daily_summary(rows, tf_label)
+            log.info(f"\n{summary_msg}\n")
+            send_telegram_alert(summary_msg)
 
     log.info("=" * 55)
     log.info("✔  Scan completado")
