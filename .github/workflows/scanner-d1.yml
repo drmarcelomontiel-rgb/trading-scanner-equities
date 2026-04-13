@@ -1,0 +1,37 @@
+name: 📅 Scanner D1 — Cierre de mercado
+
+on:
+  # Corre a las 20:00 UTC (16:00 ET en EDT/verano) y
+  # a las 21:00 UTC (16:00 ET en EST/invierno).
+  # Usa --force porque el mercado acaba de cerrar y la vela diaria está completa.
+  schedule:
+    - cron: "0 20 * * 1-5"   # 16:00 ET horario de verano (EDT)
+    - cron: "0 21 * * 1-5"   # 16:00 ET horario de invierno (EST)
+
+jobs:
+  scan-d1:
+    name: Scan D1 — todos los activos
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: 📥 Checkout código
+        uses: actions/checkout@v4
+
+      - name: 🐍 Configurar Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: 📦 Instalar dependencias
+        run: pip install -r requirements.txt
+
+      - name: 📅 Ejecutar scanner D1
+        env:
+          ALPACA_API_KEY:     ${{ secrets.ALPACA_API_KEY }}
+          ALPACA_API_SECRET:  ${{ secrets.ALPACA_API_SECRET }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID:   ${{ secrets.TELEGRAM_CHAT_ID }}
+        # --force porque corremos justo al cierre; la vela D1 ya está cerrada
+        run: python scanner.py --timeframe D1 --force

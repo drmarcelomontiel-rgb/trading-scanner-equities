@@ -1,13 +1,7 @@
-name: 🔍 Trading Scanner — Equities
+name: 🔍 Trading Scanner — Manual
 
 on:
-  # ── Automático: cada hora al cierre de vela H1, en horario NYSE ──────────────
-  # Corre 14:00–21:00 UTC (cubre 9:00–16:00 ET tanto en EDT como EST).
-  # El script mismo verifica que el mercado esté abierto antes de escanear.
-  schedule:
-    - cron: "0 14-21 * * 1-5"
-
-  # ── Manual: desde la UI de GitHub Actions ────────────────────────────────────
+  # ── Solo manual: los schedules automáticos están en scanner-h1.yml y scanner-d1.yml ──
   workflow_dispatch:
     inputs:
       symbol:
