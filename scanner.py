@@ -85,18 +85,29 @@ def fetch_bars(client: StockHistoricalDataClient, symbol: str, timeframe: str) -
         data = client.get_stock_bars(req)
         df   = data.df
 
-        # El MultiIndex tiene (symbol, timestamp) — quedarse solo con el símbolo
+        log.debug(f"{symbol} columnas raw: {list(df.columns)}, index: {df.index.names}")
+
+        # Aplanar MultiIndex (symbol, timestamp) → solo timestamp
         if isinstance(df.index, pd.MultiIndex):
-            df = df.xs(symbol, level=0)
+            lvl0 = df.index.get_level_values(0)
+            key  = symbol if symbol in lvl0 else lvl0[0]
+            df   = df.xs(key, level=0)
+
+        # Si el índice es 'timestamp' como columna, convertirlo
+        if df.index.name != "timestamp" and "timestamp" in df.columns:
+            df = df.set_index("timestamp")
+
+        # Eliminar columna 'symbol' si quedó
+        df = df.loc[:, df.columns != "symbol"]
 
         df.index = pd.to_datetime(df.index)
         df.sort_index(inplace=True)
         df.columns = [c.lower() for c in df.columns]
 
-        for col in ("open", "high", "low", "close", "volume"):
-            if col not in df.columns:
-                log.warning(f"{symbol} — columna '{col}' ausente en los datos")
-                return None
+        missing = [c for c in ("open", "high", "low", "close", "volume") if c not in df.columns]
+        if missing:
+            log.warning(f"{symbol} — columnas faltantes: {missing}. Disponibles: {list(df.columns)}")
+            return None
 
         return df[["open", "high", "low", "close", "volume"]]
 
