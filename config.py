@@ -11,7 +11,8 @@ SYMBOLS = ["SPMO", "QQQ", "VGT", "XLE", "XLF", "SPYM", "AVUV", "INTC"]
 TIMEFRAMES = ["H1", "D1"]
 
 # ── Setup: parámetros ─────────────────────────────────────────────────────────
-MIN_CONFLUENCES    = 4       # mínimo de condiciones para disparar alerta
+MIN_CONFLUENCES         = 4     # mínimo de condiciones para disparar alerta (sobre 7)
+SR_PROXIMITY_THRESHOLD  = 0.02  # 2% de distancia máxima al soporte/resistencia clave
 FIB_LOW_LEVEL      = 0.382   # 38.2% de retroceso
 FIB_HIGH_LEVEL     = 0.618   # 61.8% de retroceso
 EMA_PERIODS        = [4, 9, 18]
